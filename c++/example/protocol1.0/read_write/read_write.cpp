@@ -35,7 +35,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <wiringPi.h>
 
 #include "dynamixel_sdk.h"                                  // Uses Dynamixel SDK library
 
@@ -111,8 +110,6 @@ int kbhit(void)
 
 int main()
 {
-
-  wiringPiSetup();
   // Initialize PortHandler instance
   // Set the port path
   // Get methods and members of PortHandlerLinux or PortHandlerWindows

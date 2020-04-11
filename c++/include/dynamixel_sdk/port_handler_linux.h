@@ -48,8 +48,11 @@ class PortHandlerLinux : public PortHandler
 
   double  getCurrentTime();
   double  getTimeSinceStart();
-  void    setTxEnable();
-  void    setTxDisable();
+
+  int dts_pin_; //add support to raspberry pi GPIO
+  int delay_tx_enable_; // (microseconds) add short delay after enable dts pin and before call writePort function and avoid lost bytes
+  int delay_ratio_tx_disable_; //(microseconds) add short delay before disable dts pin when call writePort, the ratio its equal to (delay_ratio) * packet_length
+
  public:
   ////////////////////////////////////////////////////////////////////////////////
   /// @brief The function that initializes instance of PortHandler and gets port_name
@@ -164,6 +167,19 @@ class PortHandlerLinux : public PortHandler
   /// @description The function checks whether current time is passed by the time of packet timeout from the time set by PortHandlerLinux::setPacketTimeout().
   ////////////////////////////////////////////////////////////////////////////////
   bool    isPacketTimeout();
+  ////////////////////////////////////////////////////////////////////////////////
+  /// @brief the functions to control 'DTS pin' to support raspberry pi  
+  ////////////////////////////////////////////////////////////////////////////////
+  void    setTxEnable();
+  void    setTxDisable();
+  void    setDtsPin(int pin);
+  void    setDelayTxEnable(int delay_tx);
+  void    setDelayRatioTxDisable(int delay_ratio_tx);
+
+  
+  int    getDtsPin();
+  int    getDelayTxEnable();
+  int    getDelayRatioTxDisable();
 };
 
 }

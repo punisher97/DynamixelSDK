@@ -34,7 +34,6 @@
 #endif
 
 #include <stdio.h>
-#include <wiringPi.h>
 #include "dynamixel_sdk.h"                                   // Uses Dynamixel SDK library
 
 // Protocol version
@@ -96,7 +95,6 @@ int kbhit(void)
 
 int main()
 {
-  wiringPiSetup();
   // Initialize PortHandler instance
   // Set the port path
   // Get methods and members of PortHandlerLinux or PortHandlerWindows
@@ -106,6 +104,8 @@ int main()
   // Set the protocol version
   // Get methods and members of Protocol1PacketHandler or Protocol2PacketHandler
   dynamixel::PacketHandler *packetHandler = dynamixel::PacketHandler::getPacketHandler(PROTOCOL_VERSION);
+  //portHandler->setDtsPin(18);
+  printf("dts_pin:%d delay_tx_enable:%d delay_ratio_tx_disable:%d\n",portHandler->getDtsPin(),portHandler->getDelayTxEnable(), portHandler->getDelayRatioTxDisable());
 
   int dxl_comm_result = COMM_TX_FAIL;             // Communication result
 

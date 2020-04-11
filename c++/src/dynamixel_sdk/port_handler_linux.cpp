@@ -27,11 +27,22 @@
 #include <sys/time.h>
 #include <sys/ioctl.h>
 #include <linux/serial.h>
-#include <wiringPi.h>
+
+#include <stdlib.h>
+#include <sys/mman.h>
 
 #include "port_handler_linux.h"
 
-#define DTS_PIN 0 //  - wiringPi pin 0 is BCM_GPIO 17.
+// Access from ARM Running Linux
+#define PAGE_SIZE (4*1024)
+#define BLOCK_SIZE (4*1024)
+#define BCM2708_PERI_BASE        0x20000000
+#define GPIO_BASE                (BCM2708_PERI_BASE + 0x200000) /* GPIO controller */
+
+#define DEFAULT_DTS_PIN_ 17 // BCM_GPIO 17.
+#define DEFAULT_DELAY_TX_ENABLE 10000 //us
+#define DEFAULT_DELAY_RATIO_TX_DISABLE 170 //us -> ratio * packet_length
+
 #define LATENCY_TIMER  16  // msec (USB latency timer)
                            // You should adjust the latency timer value. From the version Ubuntu 16.04.2, the default latency timer of the usb serial is '16 msec'.
                            // When you are going to use sync / bulk read, the latency timer should be loosen.
@@ -57,6 +68,59 @@
                            // or if you have another good idea that can be an alternatives,
                            // please give us advice via github issue https://github.com/ROBOTIS-GIT/DynamixelSDK/issues
 
+int  mem_fd;
+void *gpio_map;
+
+// I/O access
+volatile unsigned *gpio;
+
+
+// GPIO setup macros. Always use INP_GPIO(x) before using OUT_GPIO(x) or SET_GPIO_ALT(x,y)
+#define INP_GPIO(g) *(gpio+((g)/10)) &= ~(7<<(((g)%10)*3))
+#define OUT_GPIO(g) *(gpio+((g)/10)) |=  (1<<(((g)%10)*3))
+#define SET_GPIO_ALT(g,a) *(gpio+(((g)/10))) |= (((a)<=3?(a)+4:(a)==4?3:2)<<(((g)%10)*3))
+
+#define GPIO_SET *(gpio+7)  // sets   bits which are 1 ignores bits which are 0
+#define GPIO_CLR *(gpio+10) // clears bits which are 1 ignores bits which are 0
+
+#define GET_GPIO(g) (*(gpio+13)&(1<<g)) // 0 if LOW, (1<<g) if HIGH
+
+#define GPIO_PULL *(gpio+37) // Pull up/pull down
+#define GPIO_PULLCLK0 *(gpio+38) // Pull up/pull down clock
+
+// Add direct register access: source:https://elinux.org/RPi_GPIO_Code_Samples#Direct_register_access
+// Set up a memory regions to access GPIO
+//
+void setup_io()
+{
+  if(gpio != NULL) return; //Already initialized
+   /* open /dev/mem */
+   if ((mem_fd = open("/dev/gpiomem", O_RDWR|O_SYNC) ) < 0) {
+      printf("can't open /dev/gpiomem \n");
+      exit(-1);
+   }
+
+   /* mmap GPIO */
+   gpio_map = mmap(
+      NULL,             //Any adddress in our space will do
+      BLOCK_SIZE,       //Map length
+      PROT_READ|PROT_WRITE,// Enable reading & writting to mapped memory
+      MAP_SHARED,       //Shared with other processes
+      mem_fd,           //File to map
+      GPIO_BASE         //Offset to GPIO peripheral
+   );
+
+   close(mem_fd); //No need to keep mem_fd open after mmap
+
+   if (gpio_map == MAP_FAILED) {
+      printf("mmap error %d\n", (int)gpio_map);//errno also set!
+      exit(-1);
+   }
+
+   // Always use volatile pointer!
+   gpio = (volatile unsigned *)gpio_map;
+} // setup_io
+
 using namespace dynamixel;
 
 PortHandlerLinux::PortHandlerLinux(const char *port_name)
@@ -64,17 +128,23 @@ PortHandlerLinux::PortHandlerLinux(const char *port_name)
     baudrate_(DEFAULT_BAUDRATE_),
     packet_start_time_(0.0),
     packet_timeout_(0.0),
-    tx_time_per_byte(0.0)
+    tx_time_per_byte(0.0),
+    dts_pin_(DEFAULT_DTS_PIN_),
+    delay_tx_enable_(DEFAULT_DELAY_TX_ENABLE),
+    delay_ratio_tx_disable_(DEFAULT_DELAY_RATIO_TX_DISABLE)
 {
   is_using_ = false;
   setPortName(port_name);
-
+  // Set up gpi pointer for direct register access
+  setup_io();
+  // Set GPIO pin 17 to output
+  INP_GPIO(dts_pin_); // must use INP_GPIO before we can use OUT_GPIO
+  OUT_GPIO(dts_pin_);
+  setTxDisable();
 }
 
 bool PortHandlerLinux::openPort()
 {
-  pinMode (DTS_PIN, OUTPUT) ;
-  setTxDisable();
   return setBaudRate(baudrate_);
 }
 
@@ -141,23 +211,53 @@ int PortHandlerLinux::writePort(uint8_t *packet, int length)
 {
   int length_written;
   setTxEnable();
-  usleep(10000);
+  usleep(delay_tx_enable_);
   length_written =  write(socket_fd_, packet, length);
-  usleep(170*length);
+  usleep(delay_ratio_tx_disable_*length);
   setTxDisable();
   return length_written;
 }
-
+/// @brief raspberry pi support and GPIO control and short delays
 void PortHandlerLinux::setTxEnable()
 {
- digitalWrite (DTS_PIN, 1) ;     // On
+  GPIO_SET = 1<< dts_pin_; // On
 }
 
 void PortHandlerLinux::setTxDisable()
 {
- digitalWrite (DTS_PIN, 0) ;     // On
+  GPIO_CLR = 1<< dts_pin_; // Off
 }
 
+void PortHandlerLinux::setDtsPin(int dts_pin)
+{
+  dts_pin_ = dts_pin;
+}
+
+void PortHandlerLinux::setDelayRatioTxDisable(int delay_ratio_tx_disable)
+{ 
+  delay_ratio_tx_disable_ = delay_ratio_tx_disable;
+}
+
+void PortHandlerLinux::setDelayTxEnable(int delay_tx_enable)
+{
+  delay_tx_enable_ = delay_tx_enable;
+}
+
+int PortHandlerLinux::getDtsPin()
+{
+  return dts_pin_;
+}
+
+int PortHandlerLinux::getDelayTxEnable()
+{
+  return delay_tx_enable_;
+}
+
+int PortHandlerLinux::getDelayRatioTxDisable()
+{
+  return delay_ratio_tx_disable_;
+}
+// end raspberry support
 void PortHandlerLinux::setPacketTimeout(uint16_t packet_length)
 {
   packet_start_time_  = getCurrentTime();

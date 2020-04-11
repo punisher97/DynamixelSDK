@@ -169,6 +169,18 @@ class WINDECLSPEC PortHandler
   /// @description The function checks whether current time is passed by the time of packet timeout from the time set by PortHandlerLinux::setPacketTimeout().
   ////////////////////////////////////////////////////////////////////////////////
   virtual bool    isPacketTimeout() = 0;
+    ////////////////////////////////////////////////////////////////////////////////
+  /// @brief the functions to control 'DTS pin' to support raspberry pi  
+  ////////////////////////////////////////////////////////////////////////////////
+  virtual void setTxEnable() = 0;
+  virtual void setTxDisable() = 0;
+  virtual void setDtsPin(int pin) = 0;
+  virtual void setDelayTxEnable(int delay_tx) =0;
+  virtual void setDelayRatioTxDisable(int delay_ratio_tx) = 0;
+
+  virtual int getDtsPin() = 0;
+  virtual int getDelayTxEnable() = 0;
+  virtual int getDelayRatioTxDisable() = 0;
 };
 
 }

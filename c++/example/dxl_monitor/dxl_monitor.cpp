@@ -38,7 +38,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
-#include <wiringPi.h>
 #include "dynamixel_sdk.h"                                  // Uses Dynamixel SDK library
 
 // Protocol version
@@ -306,8 +305,6 @@ void dump(dynamixel::PortHandler *portHandler, dynamixel::PacketHandler *packetH
 
 int main(int argc, char *argv[])
 {
-  wiringPiSetup();
-
   // Initialize Packethandler1 instance
   dynamixel::PacketHandler *packetHandler1 = dynamixel::PacketHandler::getPacketHandler(PROTOCOL_VERSION1);
 
