@@ -85,9 +85,9 @@ class PortHandler(object):
 
     def writePort(self, packet):
         gpio.output(DTS_PIN, gpio.HIGH)
-        time.sleep(0.005) 
+        time.sleep(0.01) 
         length_written= self.ser.write(packet)
-        time.sleep(0.0001 * len(packet))
+        time.sleep(0.00017 * len(packet))
         gpio.output(DTS_PIN, gpio.LOW)
         return length_written
 
